@@ -29,18 +29,14 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.text.SimpleDateFormat;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import android.text.format.Time;
+
 /**
  * Created by Marina on 19/11/2016.
  */
 
 public  class ForecastFragment extends Fragment {
 
-    public ArrayAdapter mForecastAdapter;
+    public ArrayAdapter<String> mForecastAdapter;
 
     public ForecastFragment() {
     }
@@ -48,14 +44,16 @@ public  class ForecastFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
        super.onCreate(savedInstanceState);
-       setHasOptionsMenu(true); }
+       setHasOptionsMenu(true);
+    }
     public void onCreateOptionsMenu(Menu menu , MenuInflater inflater){
         inflater.inflate(R.menu.forecastfragment , menu);
     }
 public boolean onOptionsItemSelected(MenuItem item) {
     int id = item.getItemId();
     if (id == R.id.action_refresh) {
-        new FetchWeatherTask().execute("94043");
+      FetchWeatherTask weatherTask=  new FetchWeatherTask();
+              weatherTask.execute("94043");
         return true;
     }
     return super.onOptionsItemSelected(item);
@@ -97,10 +95,28 @@ public boolean onOptionsItemSelected(MenuItem item) {
     }
 
 
-    public class FetchWeatherTask extends AsyncTask<String, Void,String> {
+    public class FetchWeatherTask extends AsyncTask<String, Void,String[]> {
 
         private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
 
+        private String getReadableDateString(long time){
+            // Because the API returns a unix timestamp (measured in seconds),
+            // it must be converted to milliseconds in order to be converted to valid date.
+            SimpleDateFormat shortenedDateFormat = new SimpleDateFormat("EEE MMM dd");
+            return shortenedDateFormat.format(time);
+        }
+
+        /**
+         * Prepare the weather high/lows for presentation.
+         */
+        private String formatHighLows(double high, double low) {
+            // For presentation, assume the user doesn't care about tenths of a degree.
+            long roundedHigh = Math.round(high);
+            long roundedLow = Math.round(low);
+
+            String highLowStr = roundedHigh + "/" + roundedLow;
+            return highLowStr;
+        }
 
         /**
          * Take the String representing the complete forecast in JSON Format and
@@ -180,8 +196,8 @@ public boolean onOptionsItemSelected(MenuItem item) {
 
 
 
-        @Override
-        protected void onPreExecute(String [] result) {
+       @Override
+        protected void onPostExecute(String[] result) {
 
             if(result!=null){
                 mForecastAdapter.clear();
@@ -192,9 +208,15 @@ public boolean onOptionsItemSelected(MenuItem item) {
 
         }
 
-        protected String doInBackground(String... params) {
+        protected String[] doInBackground(String... params) {
             // These two need to be declared outside the try/catch
 // so that they can be closed in the finally block.
+            // If there's no zip code, there's nothing to look up.  Verify size of params.
+            if (params.length == 0) {
+                return null;
+            }
+
+
             HttpURLConnection urlConnection = null;
 
             BufferedReader reader = null;
@@ -212,14 +234,14 @@ public boolean onOptionsItemSelected(MenuItem item) {
                 final String QUERY_MODE="mode";
                 final String QUERY_UNITS="units";
                 final String QUERY_COUNT="cnt";
-                final String APPID_PARAM = "APPID";
+                final String APPID = "APPID";
 
                 Uri MyUri=Uri.parse(URL).buildUpon()
                         .appendQueryParameter(QUERY,params[0])
                         .appendQueryParameter(QUERY_MODE,format)
                         .appendQueryParameter(QUERY_UNITS,units)
                         .appendQueryParameter(QUERY_COUNT,Integer.toString(numDays))
-                        .appendQueryParameter(APPID_PARAM, BuildConfig.OPEN_WEATHER_MAP_API_KEY)
+                        .appendQueryParameter(APPID, BuildConfig.OPEN_WEATHER_MAP_API_KEY)
                         .build();
 
                 URL url=new URL(MyUri.toString());
@@ -278,7 +300,7 @@ public boolean onOptionsItemSelected(MenuItem item) {
                     }
                 }}
             try {
-                               return getWeatherDataFromJson(forecastJsonStr, Integer.toString(numDays));
+                               return getWeatherDataFromJson (forecastJsonStr,numDays);
                             } catch (JSONException e) {
                                 Log.e(LOG_TAG, e.getMessage(), e);
                                 e.printStackTrace();
@@ -289,24 +311,6 @@ public boolean onOptionsItemSelected(MenuItem item) {
         /* The date/time conversion code is going to be moved outside the asynctask later,
                 * so for convenience we're breaking it out into its own method now.
                 */
-        private String getReadableDateString(long time){
-            // Because the API returns a unix timestamp (measured in seconds),
-            // it must be converted to milliseconds in order to be converted to valid date.
-            SimpleDateFormat shortenedDateFormat = new SimpleDateFormat("EEE MMM dd");
-            return shortenedDateFormat.format(time);
-        }
-
-        /**
-         * Prepare the weather high/lows for presentation.
-         */
-        private String formatHighLows(double high, double low) {
-            // For presentation, assume the user doesn't care about tenths of a degree.
-            long roundedHigh = Math.round(high);
-            long roundedLow = Math.round(low);
-
-            String highLowStr = roundedHigh + "/" + roundedLow;
-            return highLowStr;
-        }
 
 
 
